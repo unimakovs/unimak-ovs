@@ -233,7 +233,16 @@ export default function AdminLoginPage() {
                             </button>
                         </form>
 
-                        <div className="mt-4 text-xs text-slate-500">
+                        <div className="mt-4 text-center">
+                            <a
+                                href="/"
+                                className="text-xs text-slate-600 hover:text-slate-900 underline"
+                            >
+                                ← Back to Homepage
+                            </a>
+                        </div>
+
+                        <div className="mt-2 text-xs text-slate-500">
                             Need help? Contact the EC IT officer.
                         </div>
                     </div>
