@@ -1,0 +1,222 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/**
+ * ===================
+ * Enums
+ * ===================
+ */
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum ElectionStatus {
+  DRAFT
+  RUNNING
+  ENDED
+}
+
+/**
+ * Your two categories
+ */
+enum ElectionCategory {
+  SRC
+  DEPARTMENT
+}
+
+/**
+ * ===================
+ * Department
+ * ===================
+ */
+model Department {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  students  User[]
+  elections Election[]
+}
+
+/**
+ * ===================
+ * User (Admins + Students)
+ * ===================
+ */
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  firstName String
+  lastName  String
+  studentId String? @unique // Nullable for admins, required and unique for students
+  role      Role    @default(STUDENT)
+
+  // Admin-only (NextAuth Credentials)
+  passwordHash String?
+
+  // Voter credentials (for STUDENT role)
+  voterKeyHash  String? // Hashed voter key for login
+  emailVerified Boolean @default(false) // Email verification status
+
+  // Student → Department (nullable for admins)
+  departmentId Int?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  // Back-relations
+  candidates       Candidate[]
+  votes            Vote[]
+  createdElections Election[]  @relation("ElectionsCreatedBy")
+  voterKeys        VoterKey[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([departmentId])
+}
+
+/**
+ * ===================
+ * Election
+ * ===================
+ */
+model Election {
+  id           Int              @id @default(autoincrement())
+  name         String
+  category     ElectionCategory
+  status       ElectionStatus   @default(DRAFT)
+  startAt      DateTime?
+  endAt        DateTime?
+  // For DEPARTMENT elections only; MUST be null for SRC
+  departmentId Int?
+  department   Department?      @relation(fields: [departmentId], references: [id])
+  // Created by Admin (Electoral Commissioner)
+  createdById  Int
+  createdBy    User             @relation("ElectionsCreatedBy", fields: [createdById], references: [id])
+  // Back-relations
+  positions    Position[]
+  voterKeys    VoterKey[]
+  votes        Vote[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status])
+  @@index([category, departmentId])
+}
+
+/**
+ * ===================
+ * Position (e.g., President)
+ * ===================
+ */
+model Position {
+  id         Int         @id @default(autoincrement())
+  name       String
+  maxChoices Int         @default(1)
+  electionId Int
+  election   Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  // Back-relations
+  candidates Candidate[]
+  votes      Vote[]
+  createdAt  DateTime    @default(now())
+
+  // No duplicate position names within the same election
+  @@unique([electionId, name])
+  @@index([electionId])
+}
+
+/**
+ * ===================
+ * Candidate
+ * ===================
+ */
+model Candidate {
+  id          Int     @id @default(autoincrement())
+  displayName String
+  manifesto   String? @db.Text
+  photoUrl    String?
+
+  positionId Int
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  // Optional link to a student user
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Back-relations
+  votes      Vote[]
+  createdAt  DateTime @default(now())
+
+  @@index([positionId])
+  @@index([userId])
+}
+
+/**
+ * ===================
+ * Vote (one vote per voter per position)
+ * ===================
+ */
+model Vote {
+  id          Int       @id @default(autoincrement())
+  voterId     Int
+  voter       User      @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  electionId  Int
+  election    Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  positionId  Int
+  position    Position  @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  candidateId Int
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+
+  // Enforce one ballot per position per voter in a given election
+  @@unique([voterId, electionId, positionId], name: "unique_vote_per_position")
+  @@index([electionId])
+  @@index([positionId])
+  @@index([candidateId])
+  @@index([voterId])
+}
+
+/**
+ * ===================
+ * VoterKey (hashed secret per voter per election)
+ * ===================
+ */
+model VoterKey {
+  id         Int       @id @default(autoincrement())
+  keyHash    String // store only the hash of the voter key
+  voterId    Int
+  voter      User      @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  electionId Int
+  election   Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+  disabled   Boolean   @default(false)
+
+  // One voter key per (voter, election)
+  @@unique([voterId, electionId], name: "unique_voter_key_per_election")
+  @@index([electionId, sentAt])
+  @@index([voterId])
+}
+
+/**
+ * ===================
+ * LoginOTP (email OTP for voter login)
+ * ===================
+ */
+model LoginOTP {
+  id        Int      @id @default(autoincrement())
+  email     String
+  codeHash  String // bcrypt hash of the 6-digit code
+  purpose   String // e.g., "VOTE_LOGIN"
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose, createdAt])
+}

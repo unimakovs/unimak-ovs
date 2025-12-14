@@ -1,9 +1,23 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/forms";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* UniMak accent colors */
+  --unimak-primary: #004aad; /* deep blue */
+  --unimak-secondary: #f59e0b; /* amber */
 }
+
+:root{
+    --brand-800: #17223a;  /* deep navy */
+    --brand-700: #1f2a44;  /* primary */
+    --brand-600: #24345a;  /* hover */
+    --brand-50:  #f3f6fc;  /* subtle bg */
+    --ink:       #0f172a;  /* slate-ish text */
+    --muted:     #64748b;  /* secondary text */
+}
+
 
 @theme inline {
   --color-background: var(--background);
@@ -20,7 +34,9 @@
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.btn-primary { background: var(--unimak-primary); color: #fff; }
+.btn-primary:hover { filter: brightness(0.95); }
