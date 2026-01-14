@@ -55,14 +55,17 @@ export async function GET(request: NextRequest) {
 
         const now = new Date();
 
-        // Get RUNNING elections that match the voter's department only
+        // Get RUNNING elections - both department elections for voter's department AND all SRC elections
         const elections = await prisma.election.findMany({
             where: {
                 status: "RUNNING",
                 startAt: { lte: now },
                 endAt: { gte: now },
-                category: "DEPARTMENT",
-                departmentId: voter.departmentId,
+                // Include both department elections for voter's department AND all SRC elections
+                OR: [
+                    { category: "DEPARTMENT", departmentId: voter.departmentId },
+                    { category: "SRC" } // SRC elections are available to all voters
+                ]
             },
             include: {
                 department: {

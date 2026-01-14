@@ -94,20 +94,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check if voter is eligible for this election (must be department election matching voter's department)
-        if (election.category !== "DEPARTMENT") {
+        // Check if voter is eligible for this election
+        if (election.category === "DEPARTMENT") {
+            // For department elections, voter must belong to the same department
+            if (!voter.departmentId || election.departmentId !== voter.departmentId) {
+                return NextResponse.json(
+                    { error: "You are not eligible to vote in this election" },
+                    { status: 403 }
+                );
+            }
+        } else if (election.category !== "SRC") {
+            // Only DEPARTMENT and SRC elections are supported
             return NextResponse.json(
-                { error: "Only department elections are available for voting" },
+                { error: "Invalid election category" },
                 { status: 403 }
             );
         }
-        
-        if (election.departmentId !== voter.departmentId) {
-            return NextResponse.json(
-                { error: "You are not eligible to vote in this election" },
-                { status: 403 }
-            );
-        }
+        // For SRC elections, all voters are eligible to vote
 
         // Verify position exists and belongs to this election
         const position = await prisma.position.findUnique({
@@ -203,4 +206,3 @@ export async function POST(request: NextRequest) {
         );
     }
 }
-

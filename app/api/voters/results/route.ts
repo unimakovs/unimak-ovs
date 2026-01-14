@@ -98,17 +98,19 @@ export async function GET(request: NextRequest) {
                 );
             }
 
-            // Check if voter is eligible (must be department election matching voter's department)
-            if (election.category !== "DEPARTMENT") {
+            // Allow viewing results for both department elections (matching voter's department) and SRC elections
+            if (election.category === "DEPARTMENT") {
+                // For department elections, check if voter belongs to the same department
+                if (!voter.departmentId || election.departmentId !== voter.departmentId) {
+                    return NextResponse.json(
+                        { error: "You are not eligible to view results for this election" },
+                        { status: 403 }
+                    );
+                }
+            } else if (election.category !== "SRC") {
+                // Only DEPARTMENT and SRC categories are supported
                 return NextResponse.json(
-                    { error: "Only department elections are available" },
-                    { status: 403 }
-                );
-            }
-
-            if (!voter.departmentId || election.departmentId !== voter.departmentId) {
-                return NextResponse.json(
-                    { error: "You are not eligible to view results for this election" },
+                    { error: "Invalid election category" },
                     { status: 403 }
                 );
             }
@@ -163,12 +165,15 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Get all ENDED elections from the voter's department only
+        // Get all ENDED elections - both from voter's department AND all SRC elections
         const elections = await prisma.election.findMany({
             where: {
                 status: "ENDED",
-                category: "DEPARTMENT",
-                departmentId: voter.departmentId,
+                // Include both ended department elections for voter's department AND all ended SRC elections
+                OR: [
+                    { category: "DEPARTMENT", departmentId: voter.departmentId },
+                    { category: "SRC" } // SRC elections are available to all voters
+                ]
             },
             include: {
                 department: {
